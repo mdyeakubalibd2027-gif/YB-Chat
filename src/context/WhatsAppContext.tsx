@@ -77,13 +77,19 @@ const WhatsAppContext = createContext<WhatsAppContextType | null>(null);
 const LOCAL_STORAGE_KEY = 'whatsapp_user_session';
 
 export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Current user session persisted locally
+  // Current user session persisted locally (null by default so Login/Registration is always shown first)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : INITIAL_USERS[0];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.id !== 'user_me') {
+          return parsed;
+        }
+      }
+      return null;
     } catch {
-      return INITIAL_USERS[0];
+      return null;
     }
   });
 

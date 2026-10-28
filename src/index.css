@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* Visible custom emerald scrollbar on the right side */
+.auth-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #00a884 #111b21;
+}
+
+.auth-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.auth-scrollbar::-webkit-scrollbar-track {
+  background: #111b21;
+  border-radius: 8px;
+  margin: 6px 0;
+}
+
+.auth-scrollbar::-webkit-scrollbar-thumb {
+  background: #00a884;
+  border-radius: 8px;
+}
+
+.auth-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #02906f;
+}
