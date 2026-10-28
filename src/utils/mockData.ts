@@ -1,8 +1,8 @@
 import { User, Chat, Message, UserStory } from '../types/whatsapp';
 
-export const AVATAR_MAN = '/src/assets/images/avatar_bangladeshi_man_1793183719675.jpg';
-export const AVATAR_WOMAN = '/src/assets/images/avatar_bangladeshi_woman_1793183720591.jpg';
-export const STATUS_CAFE = '/src/assets/images/status_coffee_cafe_1793183721066.jpg';
+export const AVATAR_MAN = '/assets/images/avatar_bangladeshi_man_1793183719675.jpg';
+export const AVATAR_WOMAN = '/assets/images/avatar_bangladeshi_woman_1793183720591.jpg';
+export const STATUS_CAFE = '/assets/images/status_coffee_cafe_1793183721066.jpg';
 
 export const INITIAL_USERS: User[] = [
   {

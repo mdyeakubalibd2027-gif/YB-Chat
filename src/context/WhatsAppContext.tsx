@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Chat, Message, UserStory, NotificationToast, MessageStatus } from '../types/whatsapp';
-import { INITIAL_USERS, INITIAL_CHATS, INITIAL_MESSAGES, INITIAL_STORIES } from '../utils/mockData';
+import { INITIAL_USERS, INITIAL_CHATS, INITIAL_MESSAGES, INITIAL_STORIES, AVATAR_MAN } from '../utils/mockData';
 import { playSentSound, playReceiveSound, playRingtone } from '../utils/audio';
 import {
   collection,
@@ -75,6 +75,7 @@ interface WhatsAppContextType {
 const WhatsAppContext = createContext<WhatsAppContextType | null>(null);
 
 const LOCAL_STORAGE_KEY = 'whatsapp_user_session';
+const USERS_STORAGE_KEY = 'whatsapp_web_all_users';
 
 export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Current user session persisted locally (null by default so Login/Registration is always shown first)
@@ -93,7 +94,25 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   });
 
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<User[]>(() => {
+    try {
+      const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const map = new Map<string, User>();
+          INITIAL_USERS.forEach((u) => map.set(u.id, u));
+          parsed.forEach((u: User) => {
+            if (u && u.id) map.set(u.id, u);
+          });
+          return Array.from(map.values());
+        }
+      }
+    } catch {
+      // safe fallback
+    }
+    return INITIAL_USERS;
+  });
   const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [stories, setStories] = useState<UserStory[]>(INITIAL_STORIES);
@@ -118,6 +137,17 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // safe fallback
     }
   }, [currentUser]);
+
+  // Sync registered users to localStorage backup
+  useEffect(() => {
+    try {
+      if (users && users.length > 0) {
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      }
+    } catch {
+      // safe fallback
+    }
+  }, [users]);
 
   // Seed Firestore initial data if collections are empty
   const seedInitialDataToFirestore = useCallback(async () => {
@@ -155,6 +185,21 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setIsFirebaseConnected(true);
           if (!snapshot.empty) {
             const usersMap = new Map<string, User>();
+            // Keep local users first
+            INITIAL_USERS.forEach((u) => usersMap.set(u.id, u));
+            try {
+              const saved = localStorage.getItem(USERS_STORAGE_KEY);
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((u: User) => {
+                    if (u && u.id) usersMap.set(u.id, u);
+                  });
+                }
+              }
+            } catch {
+              // safe
+            }
             snapshot.forEach((docSnap) => {
               const u = docSnap.data() as User;
               if (u && u.id) {
@@ -167,7 +212,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         },
         (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'users');
+          console.warn('Firestore users listener warning:', error);
         }
       );
 
@@ -721,38 +766,63 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setActiveChatIdState(null);
 
       try {
-        await setDoc(doc(db, 'users', user.id), loggedUser, { merge: true });
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(loggedUser));
       } catch {
         // safe
+      }
+
+      try {
+        await setDoc(doc(db, 'users', user.id), loggedUser, { merge: true });
+      } catch (err) {
+        console.warn('Firestore login update warning:', err);
       }
     },
     []
   );
 
-  // Register in Firestore
+  // Register in Firestore & local state
   const register = useCallback(
     async (data: { name: string; phone: string; email?: string; avatar?: string; about?: string; password?: string }) => {
       const newUserId = `user_${Date.now()}`;
       const newUser: User = {
         id: newUserId,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        avatar: data.avatar || INITIAL_USERS[0].avatar,
+        name: data.name.trim(),
+        phone: data.phone.trim(),
+        email: data.email?.trim() || `${data.phone.replace(/\D/g, '')}@whatsapp.chat`,
+        avatar: data.avatar || AVATAR_MAN,
         about: data.about || 'Available on WhatsApp',
         password: data.password || '123456',
         isOnline: true,
+        updatedAt: Date.now(),
       };
 
+      // 1. Immediately update local state & local storage (100% reliable)
+      setUsers((prev) => {
+        const next = [...prev.filter((u) => u.id !== newUserId), newUser];
+        try {
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // safe
+        }
+        return next;
+      });
+
+      setCurrentUser(newUser);
+      setActiveChatIdState(null);
+
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newUser));
+      } catch {
+        // safe
+      }
+
+      // 2. Persist to Firestore asynchronously without blocking or throwing to user
       try {
         await setDoc(doc(db, 'users', newUserId), newUser);
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `users/${newUserId}`);
+        console.warn('Firestore setDoc user warning (offline or network delay):', err);
       }
 
-      setUsers((prev) => (prev.some((u) => u.id === newUserId) ? prev : [...prev, newUser]));
-      setCurrentUser(newUser);
-      setActiveChatIdState(null);
       return newUser;
     },
     []

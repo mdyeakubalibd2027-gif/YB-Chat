@@ -10,6 +10,7 @@ export interface User {
   password?: string;
   isOnline: boolean;
   lastSeen?: string;
+  updatedAt?: number;
 }
 
 export interface Message {
