@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useWhatsApp } from '../context/WhatsAppContext';
 import { X, Users, Check, ArrowRight } from 'lucide-react';
+import { isDemoId } from '../utils/mockData';
 
 interface NewGroupModalProps {
   onClose: () => void;
@@ -14,7 +15,7 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({ onClose }) => {
   const [step, setStep] = useState<1 | 2>(1); // 1: Select members, 2: Group name
 
   const isBn = language === 'bn';
-  const availableUsers = users.filter((u) => u.id !== currentUser?.id);
+  const availableUsers = users.filter((u) => u.id !== currentUser?.id && !isDemoId(u.id));
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUserIds((prev) =>
@@ -61,43 +62,53 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({ onClose }) => {
             </p>
 
             <div className="max-h-72 overflow-y-auto space-y-1.5 scrollbar-thin">
-              {availableUsers.map((user) => {
-                const isSelected = selectedUserIds.includes(user.id);
-                return (
-                  <div
-                    key={user.id}
-                    onClick={() => toggleUserSelection(user.id)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'bg-[#00a884]/20 border border-[#00a884]/40'
-                        : 'hover:bg-[#111b21]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={user.avatar}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-white">{user.name}</p>
-                        <p className="text-xs text-gray-400">{user.phone}</p>
-                      </div>
-                    </div>
-
+              {availableUsers.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-[#111b21]/60 border border-[#2a3942]">
+                  <p className="text-xs text-gray-400">
+                    {isBn
+                      ? 'গ্রুপ তৈরি করার জন্য স্টোরে অন্তত আরও একজন ব্যবহারকারী নিবন্ধিত থাকা আবশ্যক।'
+                      : 'At least one other registered user is required to create a group.'}
+                  </p>
+                </div>
+              ) : (
+                availableUsers.map((user) => {
+                  const isSelected = selectedUserIds.includes(user.id);
+                  return (
                     <div
-                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                      key={user.id}
+                      onClick={() => toggleUserSelection(user.id)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-[#00a884] border-[#00a884] text-white'
-                          : 'border-gray-500'
+                          ? 'bg-[#00a884]/20 border border-[#00a884]/40'
+                          : 'hover:bg-[#111b21]'
                       }`}
                     >
-                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={user.avatar}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">{user.name}</p>
+                          <p className="text-xs text-gray-400">{user.phone}</p>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                          isSelected
+                            ? 'bg-[#00a884] border-[#00a884] text-white'
+                            : 'border-gray-500'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             <button

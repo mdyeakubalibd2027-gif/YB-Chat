@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Chat, Message, UserStory, NotificationToast, MessageStatus } from '../types/whatsapp';
-import { INITIAL_USERS, INITIAL_CHATS, INITIAL_MESSAGES, INITIAL_STORIES, AVATAR_MAN } from '../utils/mockData';
+import { User, Chat, Message, UserStory, NotificationToast, MessageStatus, CallLog } from '../types/whatsapp';
+import { INITIAL_USERS, INITIAL_CHATS, INITIAL_MESSAGES, INITIAL_STORIES, AVATAR_MAN, isDemoId } from '../utils/mockData';
 import { playSentSound, playReceiveSound, playRingtone } from '../utils/audio';
 import {
   collection,
@@ -35,6 +35,7 @@ interface WhatsAppContextType {
   activeChatId: string | null;
   stories: UserStory[];
   myStory: UserStory | null;
+  callLogs: CallLog[];
   notifications: NotificationToast[];
   theme: 'dark' | 'light';
   soundEnabled: boolean;
@@ -76,6 +77,7 @@ const WhatsAppContext = createContext<WhatsAppContextType | null>(null);
 
 const LOCAL_STORAGE_KEY = 'whatsapp_user_session';
 const USERS_STORAGE_KEY = 'whatsapp_web_all_users';
+const CALLS_STORAGE_KEY = 'whatsapp_web_call_logs';
 
 export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Current user session persisted locally (null by default so Login/Registration is always shown first)
@@ -84,7 +86,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.id !== 'user_me') {
+        if (parsed && parsed.id && !isDemoId(parsed.id)) {
           return parsed;
         }
       }
@@ -94,6 +96,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   });
 
+  // Registered users - only real users, no hardcoded demo accounts
   const [users, setUsers] = useState<User[]>(() => {
     try {
       const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
@@ -101,9 +104,10 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const map = new Map<string, User>();
-          INITIAL_USERS.forEach((u) => map.set(u.id, u));
           parsed.forEach((u: User) => {
-            if (u && u.id) map.set(u.id, u);
+            if (u && u.id && !isDemoId(u.id)) {
+              map.set(u.id, u);
+            }
           });
           return Array.from(map.values());
         }
@@ -111,11 +115,27 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {
       // safe fallback
     }
-    return INITIAL_USERS;
+    return [];
   });
-  const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
-  const [stories, setStories] = useState<UserStory[]>(INITIAL_STORIES);
+
+  // Clean empty state for chats, messages, stories and calls
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [stories, setStories] = useState<UserStory[]>([]);
+  const [callLogs, setCallLogs] = useState<CallLog[]>(() => {
+    try {
+      const saved = localStorage.getItem(CALLS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((c: CallLog) => !isDemoId(c.id) && !isDemoId(c.partnerId));
+        }
+      }
+    } catch {
+      // safe fallback
+    }
+    return [];
+  });
 
   const [activeChatId, setActiveChatIdState] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationToast[]>([]);
@@ -128,7 +148,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Sync current user session to localStorage
   useEffect(() => {
     try {
-      if (currentUser) {
+      if (currentUser && !isDemoId(currentUser.id)) {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentUser));
       } else {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -138,38 +158,17 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [currentUser]);
 
-  // Sync registered users to localStorage backup
+  // Sync registered users to localStorage backup (excluding any demo users)
   useEffect(() => {
     try {
-      if (users && users.length > 0) {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-      }
+      const realUsers = users.filter((u) => !isDemoId(u.id));
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(realUsers));
     } catch {
       // safe fallback
     }
   }, [users]);
 
-  // Seed Firestore initial data if collections are empty
-  const seedInitialDataToFirestore = useCallback(async () => {
-    try {
-      // Seed users
-      for (const u of INITIAL_USERS) {
-        await setDoc(doc(db, 'users', u.id), u, { merge: true });
-      }
-      // Seed chats
-      for (const c of INITIAL_CHATS) {
-        await setDoc(doc(db, 'chats', c.id), c, { merge: true });
-      }
-      // Seed messages
-      for (const m of INITIAL_MESSAGES) {
-        await setDoc(doc(db, 'messages', m.id), m, { merge: true });
-      }
-    } catch (err) {
-      console.warn('Initial seed skipped or completed:', err);
-    }
-  }, []);
-
-  // Listen to Firestore real-time collections
+  // Listen to Firestore real-time collections (no mock seeding)
   useEffect(() => {
     let unsubscribeUsers: (() => void) | undefined;
     let unsubscribeChats: (() => void) | undefined;
@@ -183,33 +182,28 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         usersRef,
         (snapshot) => {
           setIsFirebaseConnected(true);
-          if (!snapshot.empty) {
-            const usersMap = new Map<string, User>();
-            // Keep local users first
-            INITIAL_USERS.forEach((u) => usersMap.set(u.id, u));
-            try {
-              const saved = localStorage.getItem(USERS_STORAGE_KEY);
-              if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                  parsed.forEach((u: User) => {
-                    if (u && u.id) usersMap.set(u.id, u);
-                  });
-                }
+          const usersMap = new Map<string, User>();
+          // Preserve local storage registered users first
+          try {
+            const saved = localStorage.getItem(USERS_STORAGE_KEY);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((u: User) => {
+                  if (u && u.id && !isDemoId(u.id)) usersMap.set(u.id, u);
+                });
               }
-            } catch {
-              // safe
             }
-            snapshot.forEach((docSnap) => {
-              const u = docSnap.data() as User;
-              if (u && u.id) {
-                usersMap.set(u.id, u);
-              }
-            });
-            setUsers(Array.from(usersMap.values()));
-          } else {
-            seedInitialDataToFirestore();
+          } catch {
+            // safe
           }
+          snapshot.forEach((docSnap) => {
+            const u = docSnap.data() as User;
+            if (u && u.id && !isDemoId(u.id)) {
+              usersMap.set(u.id, u);
+            }
+          });
+          setUsers(Array.from(usersMap.values()));
         },
         (error) => {
           console.warn('Firestore users listener warning:', error);
@@ -221,16 +215,14 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubscribeChats = onSnapshot(
         chatsRef,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const chatsMap = new Map<string, Chat>();
-            snapshot.forEach((docSnap) => {
-              const c = docSnap.data() as Chat;
-              if (c && c.id) {
-                chatsMap.set(c.id, c);
-              }
-            });
-            setChats(Array.from(chatsMap.values()));
-          }
+          const chatsMap = new Map<string, Chat>();
+          snapshot.forEach((docSnap) => {
+            const c = docSnap.data() as Chat;
+            if (c && c.id && !isDemoId(c.id)) {
+              chatsMap.set(c.id, c);
+            }
+          });
+          setChats(Array.from(chatsMap.values()));
         },
         (error) => {
           handleFirestoreError(error, OperationType.LIST, 'chats');
@@ -242,16 +234,22 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubscribeMessages = onSnapshot(
         messagesQuery,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const messagesMap = new Map<string, Message>();
-            snapshot.forEach((docSnap) => {
-              const m = docSnap.data() as Message;
-              if (m && m.id) {
-                messagesMap.set(m.id, m);
-              }
-            });
-            setMessages(Array.from(messagesMap.values()));
-          }
+          const messagesMap = new Map<string, Message>();
+          snapshot.forEach((docSnap) => {
+            const m = docSnap.data() as Message;
+            if (
+              m &&
+              m.id &&
+              !isDemoId(m.id) &&
+              !m.id.startsWith('msg_s') &&
+              !m.id.startsWith('msg_g') &&
+              !m.id.startsWith('msg_t') &&
+              !m.id.startsWith('msg_r')
+            ) {
+              messagesMap.set(m.id, m);
+            }
+          });
+          setMessages(Array.from(messagesMap.values()));
         },
         (error) => {
           handleFirestoreError(error, OperationType.LIST, 'messages');
@@ -263,47 +261,48 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubscribeStories = onSnapshot(
         storiesRef,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const rawStories: {
-              id: string;
-              userId: string;
-              userName: string;
-              userAvatar: string;
-              type: 'text' | 'image';
-              content: string;
-              caption?: string;
-              backgroundColor?: string;
-              timestamp: number;
-            }[] = [];
-            snapshot.forEach((docSnap) => {
-              rawStories.push(docSnap.data() as any);
-            });
+          const rawStories: {
+            id: string;
+            userId: string;
+            userName: string;
+            userAvatar: string;
+            type: 'text' | 'image';
+            content: string;
+            caption?: string;
+            backgroundColor?: string;
+            timestamp: number;
+          }[] = [];
+          snapshot.forEach((docSnap) => {
+            const st = docSnap.data() as any;
+            if (st && st.userId && !isDemoId(st.userId)) {
+              rawStories.push(st);
+            }
+          });
 
-            // Group stories by userId
-            const userStoryMap = new Map<string, UserStory>();
-            rawStories.forEach((st) => {
-              if (!userStoryMap.has(st.userId)) {
-                userStoryMap.set(st.userId, {
-                  userId: st.userId,
-                  userName: st.userName,
-                  userAvatar: st.userAvatar,
-                  stories: [],
-                  updatedAt: st.timestamp,
-                  allViewed: false,
-                });
-              }
-              userStoryMap.get(st.userId)!.stories.push({
-                id: st.id,
-                type: st.type,
-                content: st.content,
-                caption: st.caption,
-                backgroundColor: st.backgroundColor,
-                timestamp: st.timestamp,
+          // Group stories by userId
+          const userStoryMap = new Map<string, UserStory>();
+          rawStories.forEach((st) => {
+            if (!userStoryMap.has(st.userId)) {
+              userStoryMap.set(st.userId, {
+                userId: st.userId,
+                userName: st.userName,
+                userAvatar: st.userAvatar,
+                stories: [],
+                updatedAt: st.timestamp,
+                allViewed: false,
               });
+            }
+            userStoryMap.get(st.userId)!.stories.push({
+              id: st.id,
+              type: st.type,
+              content: st.content,
+              caption: st.caption,
+              backgroundColor: st.backgroundColor,
+              timestamp: st.timestamp,
             });
+          });
 
-            setStories(Array.from(userStoryMap.values()));
-          }
+          setStories(Array.from(userStoryMap.values()));
         },
         (error) => {
           handleFirestoreError(error, OperationType.LIST, 'stories');
@@ -319,7 +318,20 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubscribeMessages?.();
       unsubscribeStories?.();
     };
-  }, [seedInitialDataToFirestore]);
+  }, []);
+
+  // Filter chats strictly for current user with zero demo chats
+  const userChats = useMemo(() => {
+    if (!currentUser) return [];
+    return chats.filter(
+      (c) =>
+        c &&
+        c.id &&
+        !isDemoId(c.id) &&
+        Array.isArray(c.participants) &&
+        c.participants.includes(currentUser.id)
+    );
+  }, [chats, currentUser]);
 
   // Set active chat and update unread count
   const setActiveChatId = useCallback(
@@ -357,8 +369,8 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const activeChat = useMemo(() => {
     if (!activeChatId) return null;
-    return chats.find((c) => c.id === activeChatId) || null;
-  }, [chats, activeChatId]);
+    return userChats.find((c) => c.id === activeChatId) || null;
+  }, [userChats, activeChatId]);
 
   const myStory = useMemo(() => {
     if (!currentUser) return null;
@@ -896,7 +908,36 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const startCall = useCallback(
     (chatId: string, type: 'audio' | 'video') => {
       const chat = chats.find((c) => c.id === chatId);
-      if (!chat) return;
+      if (!chat || !currentUser) return;
+
+      const partnerId = chat.participants.find((p) => p !== currentUser.id);
+      const partnerObj = users.find((u) => u.id === partnerId);
+      const partnerAvatar = chat.avatar || partnerObj?.avatar || AVATAR_MAN;
+
+      const now = new Date();
+      const timeStr = `${now.getHours() % 12 || 12}:${now.getMinutes() < 10 ? '0' : ''}${now.getMinutes()} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+
+      const newLog: CallLog = {
+        id: `call_${Date.now()}`,
+        partnerId: partnerId || '',
+        partnerName: chat.name,
+        partnerAvatar,
+        type,
+        direction: 'outgoing',
+        status: 'connected',
+        time: timeStr,
+        timestamp: Date.now(),
+      };
+
+      setCallLogs((prev) => {
+        const next = [newLog, ...prev.filter((c) => !isDemoId(c.id))];
+        try {
+          localStorage.setItem(CALLS_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // safe
+        }
+        return next;
+      });
 
       const stopRingtone = playRingtone();
 
@@ -904,7 +945,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         active: true,
         type,
         partnerName: chat.name,
-        partnerAvatar: chat.avatar || (users[1] ? users[1].avatar : ''),
+        partnerAvatar,
         chatId,
         status: 'calling',
         duration: 0,
@@ -922,7 +963,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         clearTimeout(timer);
       };
     },
-    [chats, users]
+    [chats, users, currentUser]
   );
 
   const endCall = useCallback(() => {
@@ -964,12 +1005,13 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         currentUser,
         users,
-        chats,
+        chats: userChats,
         messages,
         activeChat,
         activeChatId,
         stories,
         myStory,
+        callLogs,
         notifications,
         theme,
         soundEnabled,

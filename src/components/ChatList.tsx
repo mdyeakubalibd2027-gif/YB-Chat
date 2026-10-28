@@ -208,14 +208,25 @@ export const ChatList: React.FC<ChatListProps> = ({
       {/* Chats Scroll List */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 divide-y divide-[#2a3942]/40">
         {filteredChats.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            <Filter className="w-8 h-8 mx-auto mb-2 opacity-40 text-emerald-400" />
-            <p className="text-sm font-medium">
-              {isBn ? 'কোনো চ্যাট পাওয়া যায়নি' : 'No chats found'}
+          <div className="py-12 px-6 text-center text-gray-400">
+            <div className="w-14 h-14 rounded-full bg-[#00a884]/15 flex items-center justify-center text-[#00a884] mx-auto mb-3">
+              <UserPlus className="w-7 h-7" />
+            </div>
+            <p className="text-sm font-semibold text-white">
+              {isBn ? 'কোনো চ্যাট নেই' : 'No chats yet'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
-              {isBn ? 'নতুন কন্টাক্ট যোগ করে চ্যাট শুরু করুন' : 'Add a contact to start chatting'}
+            <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto leading-relaxed">
+              {isBn
+                ? 'আমাদের স্টোরে নিবন্ধিত ফোন নম্বর যোগ করে সরাসরি কথা বলা শুরু করুন।'
+                : 'Add a registered phone number from our store to start chatting.'}
             </p>
+            <button
+              onClick={onOpenNewContact}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#00a884] hover:bg-[#02906f] text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-[#00a884]/20"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{isBn ? 'নম্বর দিয়ে চ্যাট শুরু করুন' : 'Add Contact by Number'}</span>
+            </button>
           </div>
         ) : (
           filteredChats.map((chat) => {

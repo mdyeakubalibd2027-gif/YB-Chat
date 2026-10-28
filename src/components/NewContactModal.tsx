@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useWhatsApp } from '../context/WhatsAppContext';
 import { X, UserPlus, Phone, Search, AlertCircle, CheckCircle2, ArrowRight, UserCheck } from 'lucide-react';
 import { User } from '../types/whatsapp';
+import { isDemoId } from '../utils/mockData';
 
 interface NewContactModalProps {
   onClose: () => void;
@@ -16,8 +17,8 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ onClose }) => 
 
   const isBn = language === 'bn';
 
-  // Registered other users in store
-  const availableStoreUsers = users.filter((u) => u.id !== currentUser?.id);
+  // Registered other users in store (excluding current user and demo accounts)
+  const availableStoreUsers = users.filter((u) => u.id !== currentUser?.id && !isDemoId(u.id));
 
   const handleSearchAndAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,36 +156,46 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({ onClose }) => 
             {isBn ? 'স্টোরে সেভ থাকা সক্রিয় নম্বরসমূহ:' : 'Registered Numbers in Store:'}
           </span>
 
-          <div className="space-y-1.5 max-h-44 overflow-y-auto scrollbar-thin pr-1">
-            {availableStoreUsers.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => handleQuickSelectNumber(u.phone)}
-                className="w-full flex items-center justify-between p-2 rounded-xl bg-[#111b21]/70 hover:bg-[#111b21] border border-[#2a3942] hover:border-emerald-500/40 text-left transition-colors group"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src={u.avatar}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="w-7 h-7 rounded-full object-cover shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400">
-                      {u.name}
-                    </p>
-                    <p className="text-[10px] text-gray-400 font-mono">{u.phone}</p>
+          {availableStoreUsers.length === 0 ? (
+            <div className="p-3 text-center rounded-xl bg-[#111b21]/50 border border-[#2a3942]/70">
+              <p className="text-[11px] text-gray-400">
+                {isBn
+                  ? 'স্টোরে এখনও অন্য কোনো নম্বর নিবন্ধিত নেই। আপনার পরিচিত কাউকে রেজিস্ট্রেশন করতে বলুন অথবা অন্য নম্বর দিয়ে অ্যাকাউন্ট তৈরি করে পরীক্ষা করুন।'
+                  : 'No other registered phone numbers found in the store yet.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-44 overflow-y-auto scrollbar-thin pr-1">
+              {availableStoreUsers.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => handleQuickSelectNumber(u.phone)}
+                  className="w-full flex items-center justify-between p-2 rounded-xl bg-[#111b21]/70 hover:bg-[#111b21] border border-[#2a3942] hover:border-emerald-500/40 text-left transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={u.avatar}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="w-7 h-7 rounded-full object-cover shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400">
+                        {u.name}
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-mono">{u.phone}</p>
+                    </div>
                   </div>
-                </div>
 
-                <span className="text-[10px] text-emerald-400 font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 shrink-0 flex items-center gap-0.5">
-                  <span>{isBn ? 'ব্যবহার করুন' : 'Use'}</span>
-                  <ArrowRight className="w-3 h-3" />
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span className="text-[10px] text-emerald-400 font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 shrink-0 flex items-center gap-0.5">
+                    <span>{isBn ? 'ব্যবহার করুন' : 'Use'}</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

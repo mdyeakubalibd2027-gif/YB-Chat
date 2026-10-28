@@ -173,42 +173,56 @@ export const StatusTab: React.FC = () => {
             {isBn ? 'সাম্প্রতিক স্ট্যাটাস আপডেট' : 'Recent Updates'}
           </p>
 
-          <div className="space-y-1">
-            {otherStories.map((story) => {
-              const latestStoryTime = new Date(story.updatedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+          {otherStories.length === 0 ? (
+            <div className="p-6 text-center rounded-2xl bg-[#202c33]/50 border border-[#2a3942]">
+              <Sparkles className="w-8 h-8 text-[#00a884] mx-auto mb-2 opacity-60" />
+              <p className="text-xs font-medium text-gray-300">
+                {isBn ? 'এখনও কোনো কন্টাক্ট স্ট্যাটাস দেননি' : 'No recent updates from contacts'}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                {isBn
+                  ? 'আপনার কন্টাক্টরা ছবি বা টেক্সট স্ট্যাটাস দিলে তা এখানে ২৪ ঘণ্টার জন্য দেখতে পারবেন।'
+                  : 'Status updates shared by your contacts will appear here for 24 hours.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {otherStories.map((story) => {
+                const latestStoryTime = new Date(story.updatedAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
 
-              return (
-                <div
-                  key={story.userId}
-                  onClick={() => setActiveViewingStory(story)}
-                  className={`flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer transition-colors ${
-                    isDark ? 'hover:bg-[#202c33]' : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="relative">
-                    <img
-                      src={story.userAvatar}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      className="w-13 h-13 rounded-full object-cover ring-2 ring-[#00a884] ring-offset-2 ring-offset-[#111b21]"
-                    />
-                  </div>
+                return (
+                  <div
+                    key={story.userId}
+                    onClick={() => setActiveViewingStory(story)}
+                    className={`flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer transition-colors ${
+                      isDark ? 'hover:bg-[#202c33]' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="relative">
+                      <img
+                        src={story.userAvatar}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-13 h-13 rounded-full object-cover ring-2 ring-[#00a884] ring-offset-2 ring-offset-[#111b21]"
+                      />
+                    </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold truncate text-white">
-                      {story.userName}
-                    </h4>
-                    <p className="text-xs text-gray-400">
-                      {isBn ? `আজ ${latestStoryTime}` : `Today at ${latestStoryTime}`}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold truncate text-white">
+                        {story.userName}
+                      </h4>
+                      <p className="text-xs text-gray-400">
+                        {isBn ? `আজ ${latestStoryTime}` : `Today at ${latestStoryTime}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

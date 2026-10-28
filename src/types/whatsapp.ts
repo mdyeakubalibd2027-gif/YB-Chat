@@ -68,3 +68,16 @@ export interface NotificationToast {
   avatar: string;
   chatId: string;
 }
+
+export interface CallLog {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerAvatar: string;
+  type: 'audio' | 'video';
+  direction: 'incoming' | 'outgoing';
+  status: 'missed' | 'connected' | 'ended';
+  time: string;
+  timestamp: number;
+}
+
