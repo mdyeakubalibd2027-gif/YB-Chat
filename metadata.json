@@ -1,0 +1,6 @@
+{
+  "name": "হোয়াটসঅ্যাপ ওয়েব - WhatsApp Web",
+  "description": "রিয়েল-টাইম মেসেজিং, ফাইল শেয়ারিং, স্ট্যাটাস, গ্রুপ চ্যাট এবং প্রোফাইল কাস্টমাইজেশন সহ আধুনিক হোয়াটসঅ্যাপ ওয়েব ও মোবাইল অ্যাপ্লিকেশন।",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
