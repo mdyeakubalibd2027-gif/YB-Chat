@@ -42,7 +42,7 @@ interface WhatsAppContextType {
   callState: CallState | null;
   isFirebaseConnected: boolean;
   login: (user: User) => void;
-  register: (data: { name: string; phone: string; email?: string; avatar?: string; about?: string }) => void;
+  register: (data: { name: string; phone: string; email?: string; avatar?: string; about?: string; password?: string }) => Promise<User | void>;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => void;
   setActiveChatId: (id: string | null) => void;
@@ -731,7 +731,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Register in Firestore
   const register = useCallback(
-    async (data: { name: string; phone: string; email?: string; avatar?: string; about?: string }) => {
+    async (data: { name: string; phone: string; email?: string; avatar?: string; about?: string; password?: string }) => {
       const newUserId = `user_${Date.now()}`;
       const newUser: User = {
         id: newUserId,
@@ -740,6 +740,7 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         email: data.email,
         avatar: data.avatar || INITIAL_USERS[0].avatar,
         about: data.about || 'Available on WhatsApp',
+        password: data.password || '123456',
         isOnline: true,
       };
 
@@ -749,9 +750,10 @@ export const WhatsAppProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         handleFirestoreError(err, OperationType.CREATE, `users/${newUserId}`);
       }
 
-      setUsers((prev) => [...prev, newUser]);
+      setUsers((prev) => (prev.some((u) => u.id === newUserId) ? prev : [...prev, newUser]));
       setCurrentUser(newUser);
       setActiveChatIdState(null);
+      return newUser;
     },
     []
   );

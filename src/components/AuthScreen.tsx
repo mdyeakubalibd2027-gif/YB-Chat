@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  Loader2,
 } from 'lucide-react';
 import { AVATAR_MAN, AVATAR_WOMAN } from '../utils/mockData';
 
@@ -32,6 +33,8 @@ export const AuthScreen: React.FC = () => {
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [regAvatar, setRegAvatar] = useState(AVATAR_MAN);
   const [avatarPreview, setAvatarPreview] = useState<string>(AVATAR_MAN);
+  const [regError, setRegError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Avatar presets
   const avatarPresets = [
@@ -53,6 +56,7 @@ export const AuthScreen: React.FC = () => {
     }
   };
 
+  // Handle Login with Phone & Password
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -60,43 +64,119 @@ export const AuthScreen: React.FC = () => {
     const cleanInput = loginPhone.trim();
     if (!cleanInput) {
       setLoginError(
-        isBn ? 'অনুগ্রহ করে আপনার ফোন নম্বর বা নাম লিখুন।' : 'Please enter your phone number or name.'
+        isBn ? 'অনুগ্রহ করে আপনার ফোন নম্বর লিখুন।' : 'Please enter your phone number.'
       );
       return;
     }
 
     const inputDigits = cleanInput.replace(/\D/g, '');
 
+    // Search user by matching phone digits or name
     const found = users.find((u) => {
       const uDigits = u.phone.replace(/\D/g, '');
       const matchPhone =
         inputDigits.length >= 5 &&
         (uDigits === inputDigits || uDigits.endsWith(inputDigits) || inputDigits.endsWith(uDigits));
-      const matchName = u.name.toLowerCase().includes(cleanInput.toLowerCase());
+      const matchName = u.name.toLowerCase() === cleanInput.toLowerCase();
       return matchPhone || matchName;
     });
 
-    if (found) {
-      login(found);
-    } else {
+    if (!found) {
       setLoginError(
         isBn
-          ? 'এই নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক নম্বর দিন অথবা নতুন অ্যাকাউন্ট তৈরি করুন।'
+          ? 'এই নম্বরে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক নম্বর দিন অথবা রেজিস্ট্রেশন করুন।'
           : 'No account found with this phone number. Please check the number or create an account.'
       );
+      return;
     }
+
+    // Password verification
+    const enteredPassword = loginPassword.trim();
+    if (found.password) {
+      if (!enteredPassword) {
+        setLoginError(
+          isBn ? 'অনুগ্রহ করে আপনার পাসওয়ার্ড লিখুন।' : 'Please enter your account password.'
+        );
+        return;
+      }
+      if (found.password !== enteredPassword) {
+        setLoginError(
+          isBn ? 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।' : 'Incorrect password! Please enter the correct password.'
+        );
+        return;
+      }
+    }
+
+    // Log the user in and enter directly
+    login(found);
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  // Handle Register with Name, Phone, Avatar & Password
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim()) return;
+    setRegError(null);
 
-    register({
-      name: regName.trim(),
-      phone: regPhone.trim() || `+880 17${Math.floor(10000000 + Math.random() * 90000000)}`,
-      avatar: regAvatar,
-      about: 'Available on WhatsApp',
+    const name = regName.trim();
+    const phone = regPhone.trim();
+    const password = regPassword.trim();
+
+    if (!name) {
+      setRegError(isBn ? 'অনুগ্রহ করে আপনার পূর্ণ নাম লিখুন।' : 'Please enter your full name.');
+      return;
+    }
+
+    if (!phone) {
+      setRegError(isBn ? 'অনুগ্রহ করে মোবাইল ফোন নম্বর লিখুন।' : 'Please enter your phone number.');
+      return;
+    }
+
+    if (!password) {
+      setRegError(isBn ? 'অনুগ্রহ করে একটি পাসওয়ার্ড দিন।' : 'Please enter a password.');
+      return;
+    }
+
+    if (password.length < 4) {
+      setRegError(isBn ? 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।' : 'Password must be at least 4 characters.');
+      return;
+    }
+
+    // Check if phone number is already registered in store
+    const cleanPhoneDigits = phone.replace(/\D/g, '');
+    const alreadyRegistered = users.some((u) => {
+      const uDigits = u.phone.replace(/\D/g, '');
+      return (
+        cleanPhoneDigits.length >= 6 &&
+        (uDigits === cleanPhoneDigits || uDigits.endsWith(cleanPhoneDigits) || cleanPhoneDigits.endsWith(uDigits))
+      );
     });
+
+    if (alreadyRegistered) {
+      setRegError(
+        isBn
+          ? 'এই ফোন নম্বর দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা আছে! অনুগ্রহ করে লগইন করুন।'
+          : 'An account already exists with this phone number. Please log in.'
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await register({
+        name,
+        phone,
+        password,
+        avatar: regAvatar,
+        about: 'Available on WhatsApp',
+      });
+      // User is automatically saved in Firestore and logged in!
+    } catch {
+      setRegError(
+        isBn
+          ? 'অ্যাকাউন্ট তৈরিতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
+          : 'Registration failed. Please try again.'
+      );
+      setIsSubmitting(false);
+    }
   };
 
   const isBn = language === 'bn';
@@ -139,6 +219,7 @@ export const AuthScreen: React.FC = () => {
               onClick={() => {
                 setMode('login');
                 setLoginError(null);
+                setRegError(null);
               }}
               className={`py-2 text-xs font-semibold rounded-lg transition-all ${
                 mode === 'login'
@@ -152,6 +233,7 @@ export const AuthScreen: React.FC = () => {
               onClick={() => {
                 setMode('register');
                 setLoginError(null);
+                setRegError(null);
               }}
               className={`py-2 text-xs font-semibold rounded-lg transition-all ${
                 mode === 'register'
@@ -168,7 +250,7 @@ export const AuthScreen: React.FC = () => {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                  {isBn ? 'ফোন নম্বর বা নাম *' : 'Phone Number or Name *'}
+                  {isBn ? 'নিবন্ধিত ফোন নম্বর *' : 'Registered Phone Number *'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-400">
@@ -193,7 +275,7 @@ export const AuthScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                  {isBn ? 'পাসওয়ার্ড / পিন' : 'Password / PIN'}
+                  {isBn ? 'পাসওয়ার্ড *' : 'Password *'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -201,8 +283,12 @@ export const AuthScreen: React.FC = () => {
                   </div>
                   <input
                     type={showLoginPassword ? 'text' : 'password'}
+                    required
                     value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      if (loginError) setLoginError(null);
+                    }}
                     placeholder="••••••••"
                     className="w-full pl-9 pr-10 py-2.5 bg-[#111b21] border border-[#2a3942] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00a884] transition-colors"
                   />
@@ -266,7 +352,10 @@ export const AuthScreen: React.FC = () => {
                     type="text"
                     required
                     value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
+                    onChange={(e) => {
+                      setRegName(e.target.value);
+                      if (regError) setRegError(null);
+                    }}
                     placeholder={isBn ? 'আপনার নাম লিখুন' : 'Enter your name'}
                     className="w-full pl-9 pr-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00a884] transition-colors"
                   />
@@ -285,7 +374,10 @@ export const AuthScreen: React.FC = () => {
                     type="text"
                     required
                     value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
+                    onChange={(e) => {
+                      setRegPhone(e.target.value);
+                      if (regError) setRegError(null);
+                    }}
                     placeholder="০১০০০-০০০০০০"
                     className="w-full pl-9 pr-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00a884] transition-colors"
                   />
@@ -353,7 +445,7 @@ export const AuthScreen: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-300 mb-1">
-                  {isBn ? 'পাসওয়ার্ড' : 'Password'}
+                  {isBn ? 'পাসওয়ার্ড *' : 'Password *'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -361,8 +453,12 @@ export const AuthScreen: React.FC = () => {
                   </div>
                   <input
                     type={showRegPassword ? 'text' : 'password'}
+                    required
                     value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
+                    onChange={(e) => {
+                      setRegPassword(e.target.value);
+                      if (regError) setRegError(null);
+                    }}
                     placeholder="••••••••"
                     className="w-full pl-9 pr-10 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00a884] transition-colors"
                   />
@@ -382,12 +478,30 @@ export const AuthScreen: React.FC = () => {
                 </div>
               </div>
 
+              {/* Registration Error Feedback */}
+              {regError && (
+                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs flex items-start gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <p>{regError}</p>
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 bg-[#00a884] hover:bg-[#02906f] active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-lg shadow-[#00a884]/20 transition-all flex items-center justify-center gap-2 mt-3"
+                disabled={isSubmitting}
+                className="w-full py-2.5 px-4 bg-[#00a884] hover:bg-[#02906f] disabled:opacity-60 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-lg shadow-[#00a884]/20 transition-all flex items-center justify-center gap-2 mt-3"
               >
-                <Check className="w-4 h-4" />
-                <span>{isBn ? 'অ্যাকাউন্ট তৈরি ও প্রবেশ করুন' : 'Create Account & Enter'}</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{isBn ? 'অ্যাকাউন্ট তৈরি হচ্ছে...' : 'Creating account...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>{isBn ? 'অ্যাকাউন্ট তৈরি ও প্রবেশ করুন' : 'Create Account & Enter'}</span>
+                  </>
+                )}
               </button>
             </form>
           )}

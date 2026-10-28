@@ -7,6 +7,7 @@ export interface User {
   email?: string;
   avatar: string;
   about: string;
+  password?: string;
   isOnline: boolean;
   lastSeen?: string;
 }

@@ -11,6 +11,7 @@
         "email": { "type": "string", "maxLength": 100 },
         "avatar": { "type": "string", "maxLength": 500000 },
         "about": { "type": "string", "maxLength": 300 },
+        "password": { "type": "string", "maxLength": 100 },
         "isOnline": { "type": "boolean" },
         "lastSeen": { "type": "string", "maxLength": 60 },
         "updatedAt": { "type": "number" }
